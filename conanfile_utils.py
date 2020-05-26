@@ -64,9 +64,15 @@ class AutoConanFile(ConanFile):
                 git.checkout(self.target_commit)
 
 
-    def system_requirements_from_conan_data(self):
+    def system_requirements_from_conan_data(self, exclude=()):
         packages: typing.Dict[str, str] = {}
         packages, fallbacks = get_required_os_field(self.conan_data, 'system-packages')
+        for _i in exclude:
+            if _i in packages:
+                packages.pop(_i)
+            if _i in fallbacks:
+                packages.pop(_i)
+        self.output.warn('packages={}'.format(packages))
         if packages:
             installer = tools.SystemPackageTool(
                 conanfile=self,
