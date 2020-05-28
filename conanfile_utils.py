@@ -80,19 +80,21 @@ class AutoConanFile(ConanFile):
             )
             for libname, pkg in packages.items():
                 if not libpkg_exists(libname, self.output):
-                    installer.install(pkg, update=False)
-                    if installer.installed(pkg):
-                        self.output.success('installed {}'.format(pkg))
-                    else:
-                        self.output.error('fail to install {}'.format(pkg))
-                    if not libpkg_exists(libname, self.output):
-                        if libname in fallbacks:
-                            conan_pkg = fallbacks[libname]
-                            if conan_pkg:
-                                self.output.warn('cannot find/install system lib {}, requires {}.'.format(libname, conan_pkg))
-                                self.requires(conan_pkg)
-                                continue
-                        self.output.error('{} does not exist in system nor in conan.'.format(libname))
+                    if pkg:
+                        installer.install(pkg, update=False)
+                        if installer.installed(pkg):
+                            self.output.success('installed {}'.format(pkg))
+                        else:
+                            self.output.error('fail to install {}'.format(pkg))
+                        if libpkg_exists(libname, self.output):
+                            continue
+                    if libname in fallbacks:
+                        conan_pkg = fallbacks[libname]
+                        if conan_pkg:
+                            self.output.warn('cannot find/install system lib {}, requires {}.'.format(libname, conan_pkg))
+                            self.requires(conan_pkg)
+                            continue
+                    self.output.error('{} does not exist in system nor in conan.'.format(libname))
 
 
     def build_requirements_from_conan_data(self):
