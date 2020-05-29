@@ -216,10 +216,11 @@ class AutoConanFile(ConanFile):
         self.cpp_info.libs = list(libs)
         self.cpp_info.cflags= list(cflags)
         self.cpp_info.includedirs = list(includedirs)
-        self.output.info("INCLUDES: {}; LIBRARIES: {} {}; DEFINES={}".format(self.cpp_info.includedirs, self.cpp_info.libdirs, self.cpp_info.libs, self.cpp_info.cflags))
+        # self.output.info("INCLUDES: {}; LIBRARIES: {} {}; DEFINES={}".format(self.cpp_info.includedirs, self.cpp_info.libdirs, self.cpp_info.libs, self.cpp_info.cflags))
         # the orc-0.4 has bug, the libdir and include dir does not composite with $prefix
         # need to fix with pkgconfig module
         # https://gitlab.freedesktop.org/gstreamer/orc/-/blob/master/meson.build
+
 
     def get_cpp_info_fields_from_pkg(self, pkg_name):
         pkg = tools.PkgConfig(pkg_name)
@@ -237,6 +238,7 @@ class AutoConanFile(ConanFile):
             _cflags = self.fix_pkgconfig_prefix(_cflags, _prefix)
             _includedirs = self.fix_pkgconfig_prefix(_includedirs, _prefix)
         return _cflags, _includedirs, _libdirs, _libs
+
 
     def create_pkgconfig_prefix_env(self, pkg_names):
         prefix_vars = dict()
