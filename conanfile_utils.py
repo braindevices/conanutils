@@ -7,7 +7,8 @@ import conans
 import yaml
 import os
 import glob
-from .pkg_conf_utils import get_all_pkg_names, get_all_names_in_pkgconfig, MyPkgConfig
+from .pkg_conf_utils import get_all_pkg_names, get_all_names_in_pkgconfig, MyPkgConfig, get_default_pc_path, \
+    get_default_lib_path
 import re
 VERSION_REGEX = re.compile(r'([0-9.]+)-(.+)-([a-z0-9]+)')
 
@@ -46,7 +47,7 @@ class AutoConanFile(ConanFile):
     os_packages = {}
     _source_subfolder = "source_subfolder"
     _build_subfolder = "build_subfolder"
-
+    default_lib_paths = get_default_lib_path()
 
     def git_source(self):
         _target_version, self.repo_branch, self.target_commit = parse_version(self.version)
@@ -156,13 +157,14 @@ class AutoConanFile(ConanFile):
         env_vars.update({'PKG_CONFIG_PATH': pkgconf_path})
         with tools.environment_append(env_vars):
             for pkg_name in pkg_names:
-                _cflags, _includedirs, _libdirs, _libs = self.get_cpp_info_fields_from_pkg(pkg_name)
+                _cflags, _includedirs, _libdirs, _libs, _syslibs = self.get_cpp_info_fields_from_pkg(pkg_name)
                 self.cpp_info.components[pkg_name].names["cmake_find_package"] = pkg_name
                 self.cpp_info.components[pkg_name].libdirs = _libdirs
                 self.cpp_info.components[pkg_name].libs = _libs
                 self.cpp_info.components[pkg_name].cflags = _cflags
                 # TODO: split cflags to defines and pure cflags
                 self.cpp_info.components[pkg_name].includedirs = _includedirs
+                self.cpp_info.components[pkg_name].system_libs = _syslibs
                 # self.cpp_info.components[pkg_name].requires = pkg.requires
                 # the design of cpp_info_components
                 # prevent any dependency outside conan
@@ -199,21 +201,25 @@ class AutoConanFile(ConanFile):
 
         libdirs = set()
         libs = set()
+        syslibs = set()
         cflags = set()
         includedirs = set()
         with tools.environment_append(env_vars):
             for pkg_name in pkg_names:
-                _cflags, _includedirs, _libdirs, _libs = self.get_cpp_info_fields_from_pkg(pkg_name)
+                _cflags, _includedirs, _libdirs, _libs, _syslibs = self.get_cpp_info_fields_from_pkg(pkg_name)
                 libdirs.update(_libdirs)
                 libs.update(_libs)
+                syslibs.update(_syslibs)
                 cflags.update(_cflags)
                 includedirs.update(_includedirs)
 
-        # self.output.info('self.cpp_info.includedirs={}'.format(self.cpp_info.includedirs))
-        # self.output.info('self.cpp_info.libdirs={}'.format(self.cpp_info.libdirs))
-        # self.output.info('self.cpp_info.libs={}'.format(self.cpp_info.libs))
+        self.output.info('includedirs={}'.format(includedirs))
+        self.output.info('libdirs={}'.format(libdirs))
+        self.output.info('libs={}'.format(libs))
+        self.output.info('system_libs={}'.format(syslibs))
         self.cpp_info.libdirs = list(libdirs)
         self.cpp_info.libs = list(libs)
+        self.cpp_info.system_libs = list(syslibs)
         self.cpp_info.cflags= list(cflags)
         self.cpp_info.includedirs = list(includedirs)
         # self.output.info("INCLUDES: {}; LIBRARIES: {} {}; DEFINES={}".format(self.cpp_info.includedirs, self.cpp_info.libdirs, self.cpp_info.libs, self.cpp_info.cflags))
@@ -224,20 +230,46 @@ class AutoConanFile(ConanFile):
 
     def get_cpp_info_fields_from_pkg(self, pkg_name):
         pkg = tools.PkgConfig(pkg_name)
-        _libdirs = [_i[2:] for _i in pkg.libs_only_L]
-        _libs = [_i[2:] for _i in pkg.libs_only_l]
-        _cflags = pkg.cflags_only_other
+        self.output.warn('pkg.libs={}'.format(pkg.libs))
+        libdirs = []
+        syslibs = []
+        libs = []
+        following_is_syslibs = False
+        for _i in pkg.libs:
+            if _i.startswith('-L'):
+                print(_i[2:], self.default_lib_paths)
+                if _i[2:] in self.default_lib_paths:
+                    self.output.info('found system libdir {}'.format(_i[2:]))
+                    following_is_syslibs = True
+                    continue
+                else:
+                    libdirs.append(_i[2:])
+                    following_is_syslibs = False
+                    continue
+            elif _i.startswith('-l'):
+                if following_is_syslibs:
+                    syslibs.append(_i[2:])
+                else:
+                    libs.append(_i[2:])
+            else:
+                raise conans.errors.ConanException('Does not support libs entries without "-L" or "-l"')
+
+
+        if len(libdirs) > 1:
+            #TODO: cpp_info is still clumsy here, the -L and -l order actually mattered. the components is come into rescue but it still have some issue in the way they designed it.
+            self.output.warn('FIXME: multiple libdirs={}. libs in one of the dir can hide the libs in another dir. Use components instead. If components is already in use, it might require split this project into sub-packages.'.format(libdirs))
+        cflags = pkg.cflags_only_other
         # TODO: split cflags to defines and pure cflags
-        _includedirs = [_i[2:] for _i in pkg.cflags_only_I]
+        includedirs = [_i[2:] for _i in pkg.cflags_only_I]
         if MyPkgConfig(None).is_pkgconf():
             _prefix = re.compile(pkg.variables['prefix'])
             self.output.warn(
                 'replace prefix (`{}`) with current package folder.'.format(_prefix.pattern))
-            _libdirs = self.fix_pkgconfig_prefix(_libdirs, _prefix)
-            _libs = self.fix_pkgconfig_prefix(_libs, _prefix)
-            _cflags = self.fix_pkgconfig_prefix(_cflags, _prefix)
-            _includedirs = self.fix_pkgconfig_prefix(_includedirs, _prefix)
-        return _cflags, _includedirs, _libdirs, _libs
+            libdirs = self.fix_pkgconfig_prefix(libdirs, _prefix)
+            libs = self.fix_pkgconfig_prefix(libs, _prefix)
+            cflags = self.fix_pkgconfig_prefix(cflags, _prefix)
+            includedirs = self.fix_pkgconfig_prefix(includedirs, _prefix)
+        return cflags, includedirs, libdirs, libs, syslibs
 
 
     def create_pkgconfig_prefix_env(self, pkg_names):

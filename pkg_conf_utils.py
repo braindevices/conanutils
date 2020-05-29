@@ -1,4 +1,6 @@
 # -*- coding: UTF-8 -*-
+import re
+import sys
 
 from conans import tools
 import subprocess
@@ -71,3 +73,26 @@ def get_all_pkg_names(lib_folder):
 def get_all_names_in_pkgconfig(pkgconfig_folder):
     print('look pc file in %s' % pkgconfig_folder)
     return MyPkgConfig('').all_pkgs(only_in_dir=pkgconfig_folder)
+
+
+def get_default_pc_path():
+    vars = tools.PkgConfig('pkg-config').variables
+    print('vars={}'.format(vars))
+    pc_path_str = vars['pc_path']
+    if (pc_path_str):
+        return pc_path_str.split(':')
+    return []
+
+def get_default_lib_path():
+    if tools.os_info.is_linux:
+        ld_output = subprocess.check_output('ld --verbose | grep SEARCH_DIR', shell=True)
+        if ld_output:
+            return re.findall(r'SEARCH_DIR\("=([^()]+)"\);', ld_output.decode())
+        else:
+            return []
+    elif tools.os_info.is_macos:
+        # TODO: return default lib search path for MacOS
+        print('FIXME: create get_default_lib_path() for MacOS', file=sys.stderr)
+        return []
+    else:
+        raise conans.errors.ConanException('does not support get_default_lib_path() in current OS')
