@@ -230,7 +230,6 @@ class AutoConanFile(ConanFile):
 
     def get_cpp_info_fields_from_pkg(self, pkg_name):
         pkg = tools.PkgConfig(pkg_name)
-        self.output.warn('pkg.libs={}'.format(pkg.libs))
         libdirs = []
         syslibs = []
         libs = []
