@@ -7,7 +7,7 @@ import conans
 import yaml
 import os
 import glob
-from .pkg_conf_utils import get_all_pkg_names, get_all_names_in_pkgconfig
+from .pkg_conf_utils import get_all_pkg_names, get_all_names_in_pkgconfig, MyPkgConfig
 import re
 VERSION_REGEX = re.compile(r'([0-9.]+)-(.+)-([a-z0-9]+)')
 
@@ -146,32 +146,23 @@ class AutoConanFile(ConanFile):
         :return:
         '''
         pkg_names = get_all_names_in_pkgconfig(pkgconf_dir)
-        prefix_vars = dict()
-        for pkg_name in pkg_names:
-            pkg_var_name = re.sub('[^a-zA-Z0-9]', '_', pkg_name)
-            pkg_prefix_var = 'PKG_CONFIG_{}_PREFIX'.format(pkg_var_name.upper())
-            self.output.info(
-                '{}={}'.format(pkg_prefix_var, self.package_folder)
-            )
-            prefix_vars[pkg_prefix_var] = 'WHAT'
-
+        env_vars = self.create_pkgconfig_prefix_env(pkg_names)
         pkgconf_path = tools.get_env('PKG_CONFIG_PATH')
         if pkgconf_path:
             pkgconf_path = pkgconf_dir + ':' + pkgconf_path
         else:
             pkgconf_path = pkgconf_dir
         print('PKG_CONFIG_PATH=%s'%pkgconf_path)
-        env_vars = prefix_vars
         env_vars.update({'PKG_CONFIG_PATH': pkgconf_path})
         with tools.environment_append(env_vars):
             for pkg_name in pkg_names:
-                pkg = tools.PkgConfig(pkg_name)
+                _cflags, _includedirs, _libdirs, _libs = self.get_cpp_info_fields_from_pkg(pkg_name)
                 self.cpp_info.components[pkg_name].names["cmake_find_package"] = pkg_name
-                self.cpp_info.components[pkg_name].libdirs = [_i[2:] for _i in pkg.libs_only_L]
-                self.cpp_info.components[pkg_name].libs = [_i[2:] for _i in pkg.libs_only_l]
-                self.cpp_info.components[pkg_name].cflags = pkg.cflags_only_other
+                self.cpp_info.components[pkg_name].libdirs = _libdirs
+                self.cpp_info.components[pkg_name].libs = _libs
+                self.cpp_info.components[pkg_name].cflags = _cflags
                 # TODO: split cflags to defines and pure cflags
-                self.cpp_info.components[pkg_name].includedirs = [_i[2:] for _i in pkg.cflags_only_I]
+                self.cpp_info.components[pkg_name].includedirs = _includedirs
                 # self.cpp_info.components[pkg_name].requires = pkg.requires
                 # the design of cpp_info_components
                 # prevent any dependency outside conan
@@ -196,14 +187,7 @@ class AutoConanFile(ConanFile):
         :return:
         '''
         pkg_names = get_all_names_in_pkgconfig(pkgconf_dir)
-        prefix_vars = dict()
-        for pkg_name in pkg_names:
-            pkg_var_name = re.sub('[^a-zA-Z0-9]', '_', pkg_name)
-            pkg_prefix_var = 'PKG_CONFIG_{}_PREFIX'.format(pkg_var_name.upper())
-            self.output.info(
-                '{}={}'.format(pkg_prefix_var, self.package_folder)
-            )
-            prefix_vars[pkg_prefix_var] = self.package_folder
+        env_vars = self.create_pkgconfig_prefix_env(pkg_names)
 
         pkgconf_path = tools.get_env('PKG_CONFIG_PATH')
         if pkgconf_path:
@@ -211,7 +195,6 @@ class AutoConanFile(ConanFile):
         else:
             pkgconf_path = pkgconf_dir
         print('PKG_CONFIG_PATH=%s'%pkgconf_path)
-        env_vars = prefix_vars
         env_vars.update({'PKG_CONFIG_PATH': pkgconf_path})
 
         libdirs = set()
@@ -220,16 +203,15 @@ class AutoConanFile(ConanFile):
         includedirs = set()
         with tools.environment_append(env_vars):
             for pkg_name in pkg_names:
-                pkg = tools.PkgConfig(pkg_name)
-                libdirs.update([_i[2:] for _i in pkg.libs_only_L])
-                libs.update([_i[2:] for _i in pkg.libs_only_l])
-                cflags.update(pkg.cflags_only_other)
-                # TODO: split cflags to defines and pure cflags
-                includedirs.update([_i[2:] for _i in pkg.cflags_only_I])
-                print('includedirs=', [_i[2:] for _i in pkg.cflags_only_I])
-        print('self.cpp_info.includedirs={}'.format(self.cpp_info.includedirs))
-        print('self.cpp_info.libdirs={}'.format(self.cpp_info.libdirs))
-        print('self.cpp_info.libs={}'.format(self.cpp_info.libs))
+                _cflags, _includedirs, _libdirs, _libs = self.get_cpp_info_fields_from_pkg(pkg_name)
+                libdirs.update(_libdirs)
+                libs.update(_libs)
+                cflags.update(_cflags)
+                includedirs.update(_includedirs)
+
+        # self.output.info('self.cpp_info.includedirs={}'.format(self.cpp_info.includedirs))
+        # self.output.info('self.cpp_info.libdirs={}'.format(self.cpp_info.libdirs))
+        # self.output.info('self.cpp_info.libs={}'.format(self.cpp_info.libs))
         self.cpp_info.libdirs = list(libdirs)
         self.cpp_info.libs = list(libs)
         self.cpp_info.cflags= list(cflags)
@@ -238,3 +220,36 @@ class AutoConanFile(ConanFile):
         # the orc-0.4 has bug, the libdir and include dir does not composite with $prefix
         # need to fix with pkgconfig module
         # https://gitlab.freedesktop.org/gstreamer/orc/-/blob/master/meson.build
+
+    def get_cpp_info_fields_from_pkg(self, pkg_name):
+        pkg = tools.PkgConfig(pkg_name)
+        _libdirs = [_i[2:] for _i in pkg.libs_only_L]
+        _libs = [_i[2:] for _i in pkg.libs_only_l]
+        _cflags = pkg.cflags_only_other
+        # TODO: split cflags to defines and pure cflags
+        _includedirs = [_i[2:] for _i in pkg.cflags_only_I]
+        if MyPkgConfig(None).is_pkgconf():
+            self.output.warn(
+                'FIXME: replace prefix (`{}`) with current package folder.'.format(pkg.variables['prefix']))
+            # TODO: fix prefix here for pkgconf
+        return _cflags, _includedirs, _libdirs, _libs
+
+    def create_pkgconfig_prefix_env(self, pkg_names):
+        prefix_vars = dict()
+        if MyPkgConfig(None).is_pkgconf():
+            self.output.warn('pkg-config is provided by pkgconf. It does not support PKG_CONFIG_$PKGNAME_$VARIABLE')
+        for pkg_name in pkg_names:
+            pkg_var_name = re.sub('[^a-zA-Z0-9]', '_', pkg_name)
+            pkg_prefix_var = 'PKG_CONFIG_{}_PREFIX'.format(pkg_var_name.upper())
+            self.output.info(
+                '{}={}'.format(pkg_prefix_var, self.package_folder)
+            )
+            prefix_vars[pkg_prefix_var] = self.package_folder
+        return prefix_vars
+
+    def fix_pkgconfig_prefix(self, itemlist: typing.List[str], oldprefix: str):
+        pat = re.compile(oldprefix)
+        ret = []
+        for item in itemlist:
+            ret.append(pat.sub(self.package_folder, item))
+        return ret

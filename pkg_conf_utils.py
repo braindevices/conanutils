@@ -9,11 +9,11 @@ class MyPkgConfig(tools.PkgConfig):
 
     def __init__(self, *args, **kwargs):
         super(MyPkgConfig, self).__init__(*args, **kwargs)
-        self.arg_list_all= '--list-package-names' if self.is_pkgconf() else '--list-all'
-        self._is_pkgconf = self.is_pkgconf()
+        self._is_pkgconf = self._check_is_pkgconf()
+        self.arg_list_all= '--list-package-names' if self._check_is_pkgconf() else '--list-all'
 
 
-    def is_pkgconf(self):
+    def _check_is_pkgconf(self):
         command = [
             self.pkg_config_executable,
             '--about'
@@ -23,6 +23,11 @@ class MyPkgConfig(tools.PkgConfig):
                 return True
         except subprocess.CalledProcessError as e:
             return False
+
+
+    def is_pkgconf(self):
+        return self._is_pkgconf
+
 
 
     def version(self):
