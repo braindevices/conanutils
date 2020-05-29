@@ -229,9 +229,13 @@ class AutoConanFile(ConanFile):
         # TODO: split cflags to defines and pure cflags
         _includedirs = [_i[2:] for _i in pkg.cflags_only_I]
         if MyPkgConfig(None).is_pkgconf():
+            _prefix = re.compile(pkg.variables['prefix'])
             self.output.warn(
-                'FIXME: replace prefix (`{}`) with current package folder.'.format(pkg.variables['prefix']))
-            # TODO: fix prefix here for pkgconf
+                'replace prefix (`{}`) with current package folder.'.format(_prefix.pattern))
+            _libdirs = self.fix_pkgconfig_prefix(_libdirs, _prefix)
+            _libs = self.fix_pkgconfig_prefix(_libs, _prefix)
+            _cflags = self.fix_pkgconfig_prefix(_cflags, _prefix)
+            _includedirs = self.fix_pkgconfig_prefix(_includedirs, _prefix)
         return _cflags, _includedirs, _libdirs, _libs
 
     def create_pkgconfig_prefix_env(self, pkg_names):
@@ -247,9 +251,9 @@ class AutoConanFile(ConanFile):
             prefix_vars[pkg_prefix_var] = self.package_folder
         return prefix_vars
 
-    def fix_pkgconfig_prefix(self, itemlist: typing.List[str], oldprefix: str):
-        pat = re.compile(oldprefix)
+
+    def fix_pkgconfig_prefix(self, itemlist: typing.List[str], oldprefix: typing.Pattern):
         ret = []
         for item in itemlist:
-            ret.append(pat.sub(self.package_folder, item))
+            ret.append(oldprefix.sub(self.package_folder, item))
         return ret
