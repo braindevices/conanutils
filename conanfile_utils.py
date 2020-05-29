@@ -7,6 +7,7 @@ import conans
 import yaml
 import os
 import glob
+from .pkg_conf_utils import get_all_pkg_names, get_all_names_in_pkgconfig
 import re
 VERSION_REGEX = re.compile(r'([0-9.]+)-(.+)-([a-z0-9]+)')
 
@@ -138,3 +139,102 @@ class AutoConanFile(ConanFile):
             prefix = root
             tools.replace_prefix_in_pc_file(new_pc, prefix)
 
+
+    def collect_components_info_from_pc(self, pkgconf_dir):
+        ''' Find all pc files and convert them to cpp_info.components. It uses PKG_CONFIG_$PACKAGE_$VARIABLE to define the prefix variable
+        :param pkgconf_dir:
+        :return:
+        '''
+        pkg_names = get_all_names_in_pkgconfig(pkgconf_dir)
+        prefix_vars = dict()
+        for pkg_name in pkg_names:
+            pkg_var_name = re.sub('[^a-zA-Z0-9]', '_', pkg_name)
+            pkg_prefix_var = 'PKG_CONFIG_{}_PREFIX'.format(pkg_var_name.upper())
+            self.output.info(
+                '{}={}'.format(pkg_prefix_var, self.package_folder)
+            )
+            prefix_vars[pkg_prefix_var] = 'WHAT'
+
+        pkgconf_path = tools.get_env('PKG_CONFIG_PATH')
+        if pkgconf_path:
+            pkgconf_path = pkgconf_dir + ':' + pkgconf_path
+        else:
+            pkgconf_path = pkgconf_dir
+        print('PKG_CONFIG_PATH=%s'%pkgconf_path)
+        env_vars = prefix_vars
+        env_vars.update({'PKG_CONFIG_PATH': pkgconf_path})
+        with tools.environment_append(env_vars):
+            for pkg_name in pkg_names:
+                pkg = tools.PkgConfig(pkg_name)
+                self.cpp_info.components[pkg_name].names["cmake_find_package"] = pkg_name
+                self.cpp_info.components[pkg_name].libdirs = [_i[2:] for _i in pkg.libs_only_L]
+                self.cpp_info.components[pkg_name].libs = [_i[2:] for _i in pkg.libs_only_l]
+                self.cpp_info.components[pkg_name].cflags = pkg.cflags_only_other
+                # TODO: split cflags to defines and pure cflags
+                self.cpp_info.components[pkg_name].includedirs = [_i[2:] for _i in pkg.cflags_only_I]
+                # self.cpp_info.components[pkg_name].requires = pkg.requires
+                # the design of cpp_info_components
+                # prevent any dependency outside conan
+                # package from working.
+                # It has to be a lib created in this package
+                # or a lib in another conan pkg which need
+                # to use conan_pkgname::lib to identify.
+                # this is very clumsy when same libs can be
+                # either from a system package or from current
+                # build or from an another conan package
+                # we should improve the components in conan
+                # currently we can just ignore it, since there is
+                # no components concept in generator at all.
+                self.output.info("{} LIBRARIES: {}, requires: {}".format( pkg_name, self.cpp_info.components[pkg_name].libs, self.cpp_info.components[pkg_name].requires))
+        # the component info is not really used in generators
+        # so the best way is to use cmake side find_package on deployed pc file or cmake_paths's CMAKE_MODULE_PATH as XX_ROOT
+
+
+    def collect_libs_info_from_pc(self, pkgconf_dir):
+        ''' Find all pc files and convert them to cpp_info.components. It uses PKG_CONFIG_$PACKAGE_$VARIABLE to define the prefix variable
+        :param pkgconf_dir:
+        :return:
+        '''
+        pkg_names = get_all_names_in_pkgconfig(pkgconf_dir)
+        prefix_vars = dict()
+        for pkg_name in pkg_names:
+            pkg_var_name = re.sub('[^a-zA-Z0-9]', '_', pkg_name)
+            pkg_prefix_var = 'PKG_CONFIG_{}_PREFIX'.format(pkg_var_name.upper())
+            self.output.info(
+                '{}={}'.format(pkg_prefix_var, self.package_folder)
+            )
+            prefix_vars[pkg_prefix_var] = self.package_folder
+
+        pkgconf_path = tools.get_env('PKG_CONFIG_PATH')
+        if pkgconf_path:
+            pkgconf_path = pkgconf_dir + ':' + pkgconf_path
+        else:
+            pkgconf_path = pkgconf_dir
+        print('PKG_CONFIG_PATH=%s'%pkgconf_path)
+        env_vars = prefix_vars
+        env_vars.update({'PKG_CONFIG_PATH': pkgconf_path})
+
+        libdirs = set()
+        libs = set()
+        cflags = set()
+        includedirs = set()
+        with tools.environment_append(env_vars):
+            for pkg_name in pkg_names:
+                pkg = tools.PkgConfig(pkg_name)
+                libdirs.update([_i[2:] for _i in pkg.libs_only_L])
+                libs.update([_i[2:] for _i in pkg.libs_only_l])
+                cflags.update(pkg.cflags_only_other)
+                # TODO: split cflags to defines and pure cflags
+                includedirs.update([_i[2:] for _i in pkg.cflags_only_I])
+                print('includedirs=', [_i[2:] for _i in pkg.cflags_only_I])
+        print('self.cpp_info.includedirs={}'.format(self.cpp_info.includedirs))
+        print('self.cpp_info.libdirs={}'.format(self.cpp_info.libdirs))
+        print('self.cpp_info.libs={}'.format(self.cpp_info.libs))
+        self.cpp_info.libdirs = list(libdirs)
+        self.cpp_info.libs = list(libs)
+        self.cpp_info.cflags= list(cflags)
+        self.cpp_info.includedirs = list(includedirs)
+        self.output.info("INCLUDES: {}; LIBRARIES: {} {}; DEFINES={}".format(self.cpp_info.includedirs, self.cpp_info.libdirs, self.cpp_info.libs, self.cpp_info.cflags))
+        # the orc-0.4 has bug, the libdir and include dir does not composite with $prefix
+        # need to fix with pkgconfig module
+        # https://gitlab.freedesktop.org/gstreamer/orc/-/blob/master/meson.build
