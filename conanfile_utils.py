@@ -101,8 +101,13 @@ class AutoConanFile(ConanFile):
                     self.output.error('{} does not exist in system nor in conan.'.format(libname))
 
 
-    def build_requirements_from_conan_data(self):
+    def build_requirements_from_conan_data(self, exclude=()):
         required_cmds, fallbacks = get_required_os_field(self.conan_data, 'required-commands')
+        for _i in exclude:
+            if _i in required_cmds:
+                required_cmds.pop(_i)
+            if _i in fallbacks:
+                required_cmds.pop(_i)
         if required_cmds:
             installer = tools.SystemPackageTool(
                 conanfile=self,
