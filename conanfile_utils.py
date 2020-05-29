@@ -48,6 +48,8 @@ class AutoConanFile(ConanFile):
     _source_subfolder = "source_subfolder"
     _build_subfolder = "build_subfolder"
     default_lib_paths = get_default_lib_path()
+    #TODO: compatibility management is required when fallback to conan package
+    #TODO: compatibility management is required when fallback to meson wrap
 
     def git_source(self):
         _target_version, self.repo_branch, self.target_commit = parse_version(self.version)
