@@ -71,20 +71,25 @@ class AutoConanFile(ConanFile):
     def system_requirements_from_conan_data(self, exclude=()):
         packages: typing.Dict[str, str] = {}
         packages, fallbacks = get_required_os_field(self.conan_data, 'system-packages')
+        self.output.info('system_requirements_from_conan_data: exclude={}'.format(exclude))
         for _i in exclude:
             if _i in packages:
                 packages.pop(_i)
             if _i in fallbacks:
-                packages.pop(_i)
+                fallbacks.pop(_i)
         self.output.warn('packages={}'.format(packages))
         if packages:
             installer = tools.SystemPackageTool(
                 conanfile=self,
                 default_mode='disabled' # export CONAN_SYSREQUIRES_SUDO='enabled' to allow actual installation
             )
+            self.output.info('system_requirements_from_conan_data: packages={}'.format(packages))
             for libname, pkg in packages.items():
+                self.output.info('system_requirements_from_conan_data: check libname={}, pkgname={}'.format(libname, pkg))
                 if not libpkg_exists(libname, self.output):
                     if pkg:
+                        self.output.info(
+                            'system_requirements_from_conan_data: try to isntall {} for {}'.format(pkg, libname))
                         installer.install(pkg, update=False)
                         if installer.installed(pkg):
                             self.output.success('installed {}'.format(pkg))
