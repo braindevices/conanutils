@@ -47,6 +47,8 @@ class MyPkgConfig(tools.PkgConfig):
         _env = dict()
         if only_in_dir:
             _env['PKG_CONFIG_LIBDIR'] = only_in_dir
+            if 'PKG_CONFIG_PATH' in _env:
+                _env.pop('PKG_CONFIG_PATH')
         print(_env)
         with tools.environment_append(_env):
             command = [
