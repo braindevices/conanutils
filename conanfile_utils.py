@@ -9,6 +9,7 @@ import os
 import glob
 from .pkg_conf_utils import get_all_pkg_names, get_all_names_in_pkgconfig, MyPkgConfig, get_default_pc_path, \
     get_default_lib_path
+from .command_utils import check_cmd_version
 import re
 VERSION_REGEX = re.compile(r'([0-9.]+)-(.+)-([a-z0-9]+)')
 
@@ -108,6 +109,7 @@ class AutoConanFile(ConanFile):
 
     def build_requirements_from_conan_data(self, exclude=()):
         required_cmds, fallbacks = get_required_os_field(self.conan_data, 'required-commands')
+        required_cmd_vers = self.conan_data['required-command-versions']
         for _i in exclude:
             if _i in required_cmds:
                 required_cmds.pop(_i)
@@ -119,17 +121,24 @@ class AutoConanFile(ConanFile):
                 default_mode='disabled'  # export CONAN_SYSREQUIRES_SUDO='enabled' to allow actual installation
             )
             for cmd in required_cmds:
-                if not tools.which(cmd):
-                    sys_pkg = required_cmds[cmd]
-                    if sys_pkg:
-                        self.output.warn('install {} for cmd ``{}'.format(sys_pkg, cmd))
-                        installer.install(sys_pkg)
-                    if not sys_pkg or not installer.installed(sys_pkg):
-                        if cmd in fallbacks:
-                            self.output.warn('requires {} for cmd `{}`.'.format(fallbacks[cmd], cmd))
-                            self.build_requires(fallbacks[cmd])
-                        else:
-                            self.output.error('cannot install/find {}'.format(cmd))
+                if tools.which(cmd):
+                    if cmd in required_cmd_vers:
+                        self.output.info(required_cmd_vers[cmd])
+                        if check_cmd_version(cmd, log_output=self.output, **required_cmd_vers[cmd]):
+                            self.output.info('{} version matched'.format(cmd))
+                            continue
+                    else:
+                        continue
+                sys_pkg = required_cmds[cmd]
+                if sys_pkg:
+                    self.output.warn('install {} for cmd ``{}'.format(sys_pkg, cmd))
+                    installer.install(sys_pkg)
+                if not sys_pkg or not installer.installed(sys_pkg):
+                    if cmd in fallbacks:
+                        self.output.warn('requires {} for cmd `{}`.'.format(fallbacks[cmd], cmd))
+                        self.build_requires(fallbacks[cmd])
+                    else:
+                        self.output.error('cannot install/find {}'.format(cmd))
 
 
     def apply_patches(self):
