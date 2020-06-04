@@ -1,4 +1,5 @@
 # -*- coding: UTF-8 -*-
+import glob
 import re
 import sys
 
@@ -74,7 +75,9 @@ def get_all_pkg_names(lib_folder):
 
 def get_all_names_in_pkgconfig(pkgconfig_folder):
     print('look pc file in %s' % pkgconfig_folder)
-    return MyPkgConfig('').all_pkgs(only_in_dir=pkgconfig_folder)
+    #return MyPkgConfig('').all_pkgs(only_in_dir=pkgconfig_folder)
+    return [os.path.splitext(os.path.basename(_i))[0] for _i in glob.glob(os.path.join(pkgconfig_folder, '*.pc'))]
+
 
 
 def get_default_pc_path():
