@@ -128,6 +128,7 @@ class AutoConanFile(ConanFile):
                             self.output.info('{} version matched'.format(cmd))
                             continue
                     else:
+                        self.output.info('has {} (any version is ok).'.format(cmd))
                         continue
                 sys_pkg = required_cmds[cmd]
                 if sys_pkg:
