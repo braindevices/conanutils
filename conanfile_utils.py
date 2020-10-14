@@ -78,7 +78,7 @@ class AutoConanFile(ConanFile):
                 packages.pop(_i)
             if _i in fallbacks:
                 fallbacks.pop(_i)
-        self.output.warn('packages={}'.format(packages))
+        self.output.info('packages={}'.format(packages))
         if packages:
             installer = tools.SystemPackageTool(
                 conanfile=self,
@@ -284,7 +284,7 @@ class AutoConanFile(ConanFile):
         includedirs = [_i[2:] for _i in pkg.cflags_only_I]
         if MyPkgConfig(None).is_pkgconf():
             _prefix = re.compile(pkg.variables['prefix'])
-            self.output.warn(
+            conans.tools.logger.debug(
                 'replace prefix (`{}`) with current package folder.'.format(_prefix.pattern))
             libdirs = self.fix_pkgconfig_prefix(libdirs, _prefix)
             libs = self.fix_pkgconfig_prefix(libs, _prefix)
@@ -300,7 +300,7 @@ class AutoConanFile(ConanFile):
         for pkg_name in pkg_names:
             pkg_var_name = re.sub('[^a-zA-Z0-9]', '_', pkg_name)
             pkg_prefix_var = 'PKG_CONFIG_{}_PREFIX'.format(pkg_var_name.upper())
-            self.output.info(
+            conans.tools.logger.info(
                 '{}={}'.format(pkg_prefix_var, self.package_folder)
             )
             prefix_vars[pkg_prefix_var] = self.package_folder
