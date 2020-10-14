@@ -50,7 +50,7 @@ class MyPkgConfig(tools.PkgConfig):
             _env['PKG_CONFIG_LIBDIR'] = only_in_dir
             if 'PKG_CONFIG_PATH' in _env:
                 _env.pop('PKG_CONFIG_PATH')
-        print(_env)
+        conans.tools.logger.debug(_env)
         with tools.environment_append(_env):
             command = [
                 self.pkg_config_executable,
@@ -74,7 +74,7 @@ def get_all_pkg_names(lib_folder):
 
 
 def get_all_names_in_pkgconfig(pkgconfig_folder):
-    print('look pc file in %s' % pkgconfig_folder)
+    conans.tools.logger.debug('look pc file in %s' % pkgconfig_folder)
     #return MyPkgConfig('').all_pkgs(only_in_dir=pkgconfig_folder)
     return [os.path.splitext(os.path.basename(_i))[0] for _i in glob.glob(os.path.join(pkgconfig_folder, '*.pc'))]
 
@@ -82,7 +82,7 @@ def get_all_names_in_pkgconfig(pkgconfig_folder):
 
 def get_default_pc_path():
     vars = tools.PkgConfig('pkg-config').variables
-    print('vars={}'.format(vars))
+    conans.tools.logger.debug('vars={}'.format(vars))
     pc_path_str = vars['pc_path']
     if (pc_path_str):
         return pc_path_str.split(':')

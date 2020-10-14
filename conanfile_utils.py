@@ -258,7 +258,7 @@ class AutoConanFile(ConanFile):
         following_is_syslibs = False
         for _i in pkg.libs:
             if _i.startswith('-L'):
-                print(_i[2:], self.default_lib_paths)
+                conans.tools.logger.debug('required lib: {}; default_lib_paths: {}'.format(_i[2:], self.default_lib_paths))
                 if _i[2:] in self.default_lib_paths:
                     self.output.info('found system libdir {}'.format(_i[2:]))
                     following_is_syslibs = True
