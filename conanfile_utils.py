@@ -38,8 +38,12 @@ def get_required_os_field(conandata: typing.Dict[str, typing.Any], field_name: s
         ret = data['ubuntu']
     elif tools.os_info.linux_distro == "fedora":
         ret = data['fedora']
+    elif tools.os_info.linux_distro == "centos":
+        ret = data['centos']
     elif tools.os_info.is_macos:
         ret = data['osx']
+    else:
+        tools.logger.warning('un-supported os: {}'.format(tools.os_info.linux_distro))
     return ret, data['fallback']
 
 
