@@ -105,7 +105,7 @@ class AutoConanFile(ConanFile):
             )
             self.output.info('system_requirements_from_conan_data: packages={}'.format(packages))
             for libname, libinfo in packages.items():
-                libreq = sys_lib_requirement_t(*libinfo)
+                libreq = sys_lib_requirement_t(**libinfo)
                 self.output.info('system_requirements_from_conan_data: check libname={}, pkgname={}, version={}'.format(libname, libreq.pkg, libreq.version))
                 if not libpkg_exists(libname, self.output, libreq.version):
                     if libreq.pkg:
