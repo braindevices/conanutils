@@ -30,7 +30,7 @@ def libpkg_exists(
     try:
         _modversion = Version(pkgconf._get_option('modversion'))
         pkgconf_vars = pkgconf.variables
-        scope_output.info('{} exists'.format(libname))
+        scope_output.info('{} {} exists'.format(libname, _modversion))
         if ver_range:
             min_ver = Version(ver_range[0])
             max_ver = Version(ver_range[1]) if len(ver_range) == 2 else None
