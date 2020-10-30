@@ -1,6 +1,7 @@
 # -*- coding: UTF-8 -*-
 import shutil
 import typing
+from typing import Dict, Union, NamedTuple, List, Tuple
 from conans import tools
 from conans import ConanFile
 import conans
@@ -9,6 +10,7 @@ import os
 import glob
 from .pkg_conf_utils import get_all_pkg_names, get_all_names_in_pkgconfig, MyPkgConfig, get_default_pc_path, \
     get_default_lib_path
+from conans.model.version import Version
 from .command_utils import check_cmd_version
 import re
 VERSION_REGEX = re.compile(r'([0-9.]+)-(.+)-([a-z0-9]+)')
@@ -20,20 +22,33 @@ def parse_version(version: str):
     raise RuntimeError('% does not match version pattern: %s'%version%VERSION_REGEX.pattern)
 
 
-def libpkg_exists(libname: str, scope_output):
+def libpkg_exists(
+        libname: str, scope_output,
+        ver_range: Union[Tuple[str], Tuple[str, str]] = ()
+):
     pkgconf = tools.PkgConfig(libname)
     try:
+        _modversion = Version(pkgconf._get_option('modeversion'))
         pkgconf_vars = pkgconf.variables
         scope_output.info('{} exists'.format(libname))
+        if ver_range:
+            min_ver = Version(ver_range[0])
+            max_ver = Version(ver_range[1]) if len(ver_range) == 2 else None
+            if _modversion < min_ver or (max_ver is not None and _modversion > max_ver):
+                scope_output.info('{} version {} is not in {}'.format(libname, _modversion, ver_range))
+                return False
         return True
     except conans.errors.ConanException as e:
         scope_output.warn('{}'.format(e))
         return False
 
+class sys_lib_requirement_t(NamedTuple):
+    pkg: str
+    version: Union[Tuple[str], Tuple[str, str]]
 
-def get_required_os_field(conandata: typing.Dict[str, typing.Any], field_name: str):
+def get_required_os_field(conandata: Dict[str, typing.Any], field_name: str):
     data = conandata[field_name]
-    ret: typing.Dict[str, str] = {}
+    ret: Dict[str, Dict] = {}
     if tools.os_info.linux_distro == "ubuntu":
         ret = data['ubuntu']
     elif tools.os_info.linux_distro == "fedora":
@@ -74,7 +89,7 @@ class AutoConanFile(ConanFile):
 
 
     def system_requirements_from_conan_data(self, exclude=()):
-        packages: typing.Dict[str, str] = {}
+        packages: Dict[str, Dict] = {}
         packages, fallbacks = get_required_os_field(self.conan_data, 'system-packages')
         self.output.info('system_requirements_from_conan_data: exclude={}'.format(exclude))
         for _i in exclude:
@@ -89,23 +104,26 @@ class AutoConanFile(ConanFile):
                 default_mode='disabled' # export CONAN_SYSREQUIRES_SUDO='enabled' to allow actual installation
             )
             self.output.info('system_requirements_from_conan_data: packages={}'.format(packages))
-            for libname, pkg in packages.items():
-                self.output.info('system_requirements_from_conan_data: check libname={}, pkgname={}'.format(libname, pkg))
-                if not libpkg_exists(libname, self.output):
-                    if pkg:
+            for libname, libinfo in packages.items():
+                libreq = sys_lib_requirement_t(*libinfo)
+                self.output.info('system_requirements_from_conan_data: check libname={}, pkgname={}, version={}'.format(libname, libreq.pkg, libreq.version))
+                if not libpkg_exists(libname, self.output, libreq.version):
+                    if libreq.pkg:
                         self.output.info(
-                            'system_requirements_from_conan_data: try to isntall {} for {}'.format(pkg, libname))
-                        installer.install(pkg, update=False)
-                        if installer.installed(pkg):
-                            self.output.success('installed {}'.format(pkg))
+                            'system_requirements_from_conan_data: try to isntall {} for {}'.format(libreq.pkg, libname))
+                        installer.install(libreq.pkg, update=False)
+                        if installer.installed(libreq.pkg):
+                            self.output.success('installed {}'.format(libreq.pkg))
                         else:
-                            self.output.error('fail to install {}'.format(pkg))
-                        if libpkg_exists(libname, self.output):
+                            self.output.error('fail to install {}'.format(libreq.pkg))
+                        if libpkg_exists(libname, self.output, libreq.version):
                             continue
+                        else:
+                            self.output.warn('{} insalled, but version does not match {}.'.format(libreq.pkg, libreq.version))
                     if libname in fallbacks:
                         conan_pkg = fallbacks[libname]
                         if conan_pkg:
-                            self.output.warn('cannot find/install system lib {}, requires {}.'.format(libname, conan_pkg))
+                            self.output.warn('cannot find/install system lib {}, requires conan package {}.'.format(libname, conan_pkg))
                             self.requires(conan_pkg)
                             continue
                     self.output.error('{} does not exist in system nor in conan.'.format(libname))
