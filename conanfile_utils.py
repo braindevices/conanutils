@@ -28,7 +28,7 @@ def libpkg_exists(
 ):
     pkgconf = tools.PkgConfig(libname)
     try:
-        _modversion = Version(pkgconf._get_option('modeversion'))
+        _modversion = Version(pkgconf._get_option('modversion'))
         pkgconf_vars = pkgconf.variables
         scope_output.info('{} exists'.format(libname))
         if ver_range:
