@@ -236,11 +236,12 @@ class AutoConanFile(ConanFile):
         pkg_names = get_all_names_in_pkgconfig(pkgconf_dir)
         env_vars = self.create_pkgconfig_prefix_env(pkg_names)
 
-        pkgconf_path = tools.get_env('PKG_CONFIG_PATH')
-        if pkgconf_path:
-            pkgconf_path = pkgconf_dir + ':' + pkgconf_path
-        else:
-            pkgconf_path = pkgconf_dir
+        pkgconf_paths = []
+        pkgconf_paths.append(pkgconf_dir)
+        pkgconf_paths.append(self.build_folder) # some components might require pc from build dir
+        if tools.get_env('PKG_CONFIG_PATH'):
+            pkgconf_paths.append(tools.get_env('PKG_CONFIG_PATH'))
+        pkgconf_path = ':'.join(pkgconf_paths)
         print('PKG_CONFIG_PATH=%s'%pkgconf_path)
         env_vars.update({'PKG_CONFIG_PATH': pkgconf_path})
 
