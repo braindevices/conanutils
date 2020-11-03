@@ -115,7 +115,8 @@ class AutoConanFile(ConanFile):
                         if installer.installed(libreq.pkg):
                             self.output.success('installed {}'.format(libreq.pkg))
                         else:
-                            self.output.error('fail to install {}'.format(libreq.pkg))
+                            self.output.info('fail to install {}'.format(libreq.pkg))
+
                         if libpkg_exists(libname, self.output, libreq.version):
                             continue
                         else:
