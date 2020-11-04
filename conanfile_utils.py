@@ -8,6 +8,8 @@ import conans
 import yaml
 import os
 import glob
+
+from .file_utils import replace_regex_in_file
 from .pkg_conf_utils import get_all_pkg_names, get_all_names_in_pkgconfig, MyPkgConfig, get_default_pc_path, \
     get_default_lib_path
 from conans.model.version import Version
@@ -228,17 +230,19 @@ class AutoConanFile(ConanFile):
         # so the best way is to use cmake side find_package on deployed pc file or cmake_paths's CMAKE_MODULE_PATH as XX_ROOT
 
 
-    def collect_libs_info_from_pc(self, pkgconf_dir):
+    def collect_libs_info_from_pc(self, pkgconf_dir, aux_pkgconf_dirs):
         ''' Find all pc files and convert them to cpp_info.components. It uses PKG_CONFIG_$PACKAGE_$VARIABLE to define the prefix variable
         :param pkgconf_dir:
         :return:
         '''
+        print(pkgconf_dir)
         pkg_names = get_all_names_in_pkgconfig(pkgconf_dir)
         env_vars = self.create_pkgconfig_prefix_env(pkg_names)
 
         pkgconf_paths = []
         pkgconf_paths.append(pkgconf_dir)
-        pkgconf_paths.append(self.build_folder) # some components might require pc from build dir
+        pkgconf_paths.extend(aux_pkgconf_dirs)
+        #pkgconf_paths.append(self.build_folder) # some components might require pc from build dir
         if tools.get_env('PKG_CONFIG_PATH'):
             pkgconf_paths.append(tools.get_env('PKG_CONFIG_PATH'))
         pkgconf_path = ':'.join(pkgconf_paths)
@@ -336,3 +340,27 @@ class AutoConanFile(ConanFile):
         for item in itemlist:
             ret.append(oldprefix.sub(self.package_folder, item))
         return ret
+
+
+def replace_path_in_files(pattern: str, *args, **kwargs):
+    for file_path in glob.glob(pattern, recursive=True):
+        print(file_path)
+        tools.replace_path_in_file(file_path, *args, **kwargs)
+
+
+def replace_regex_in_files(pattern: str, *args, **kwargs):
+    for file_path in glob.glob(pattern, recursive=True):
+        print(file_path)
+        replace_regex_in_file(file_path, *args, **kwargs)
+
+
+def replace_path_in_pkgconfig(pc_file_root_dir, dependency_package_dir):
+    dep_path_comps = dependency_package_dir.split(os.path.sep)
+    pkg_name_version_channel = os.path.join(*dep_path_comps[-6:-2])
+    print(pkg_name_version_channel)
+    replace_regex_in_files(
+        os.path.join(pc_file_root_dir, '**', '*.pc'),
+        search=os.path.join('/.*', pkg_name_version_channel, 'package', '[0-9a-z]+'),
+        replace=dependency_package_dir,
+        strict=False
+    )
