@@ -285,6 +285,8 @@ class AutoConanFile(ConanFile):
         libs = []
         following_is_syslibs = False
         for _i in pkg.libs:
+            if not _i.strip():
+                continue
             if _i.startswith('-L'):
                 conans.tools.logger.debug('required lib: {}; default_lib_paths: {}'.format(_i[2:], self.default_lib_paths))
                 if _i[2:] in self.default_lib_paths:
@@ -300,6 +302,8 @@ class AutoConanFile(ConanFile):
                     syslibs.append(_i[2:])
                 else:
                     libs.append(_i[2:])
+            elif _i.startswith('-Wl'):
+                self.output.info('ignore linker flags {}'.format(_i))
             else:
                 raise conans.errors.ConanException('Does not support libs entries without "-L" or "-l"')
 
