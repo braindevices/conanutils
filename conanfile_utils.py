@@ -1,7 +1,7 @@
 # -*- coding: UTF-8 -*-
 import shutil
 import typing
-from typing import Dict, Union, NamedTuple, List, Tuple
+from typing import Dict, Union, NamedTuple, List, Tuple, Iterable
 from conans import tools
 from conans import ConanFile
 import conans
@@ -230,7 +230,7 @@ class AutoConanFile(ConanFile):
         # so the best way is to use cmake side find_package on deployed pc file or cmake_paths's CMAKE_MODULE_PATH as XX_ROOT
 
 
-    def collect_libs_info_from_pc(self, pkgconf_dir, aux_pkgconf_dirs):
+    def collect_libs_info_from_pc(self, pkgconf_dir:str, aux_pkgconf_dirs: Tuple[str]):
         ''' Find all pc files and convert them to cpp_info.components. It uses PKG_CONFIG_$PACKAGE_$VARIABLE to define the prefix variable
         :param pkgconf_dir:
         :return:
